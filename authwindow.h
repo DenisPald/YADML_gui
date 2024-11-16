@@ -17,9 +17,12 @@ signals:
 
 private slots:
     void handleLogin();
+    void handleRegister();
 
 private:
+    bool checkCredentials(const QString &username, const QString &password = QString());
     QLineEdit *usernameInput;
     QLineEdit *passwordInput;
     QPushButton *loginButton;
+    QPushButton *registerButton;
 };
