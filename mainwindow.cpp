@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include <QMessageBox>
+#include "workersettingsdialog.h"
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     setWindowTitle("Распределенное обучение");
@@ -24,6 +25,21 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
     machineSelector = createMachineSelector();
     layout->addWidget(machineSelector);
+
+    QPushButton *settingsButton = new QPushButton("Открыть настройки воркеров", this);
+    connect(settingsButton, &QPushButton::clicked, this, &MainWindow::openWorkerSettings);
+    layout->addWidget(settingsButton);
+
+
+
+    // Добавление кнопок "Получить данные" и "Отправить данные"
+    QPushButton *getDataButton = new QPushButton("Получить данные", this);
+    connect(getDataButton, &QPushButton::clicked, this, &MainWindow::getData);
+    layout->addWidget(getDataButton);
+
+    QPushButton *sendDataButton = new QPushButton("Отправить данные", this);
+    connect(sendDataButton, &QPushButton::clicked, this, &MainWindow::sendData);
+    layout->addWidget(sendDataButton);
 
     startTrainingButton = new QPushButton("Начать обучение", this);
     connect(startTrainingButton, &QPushButton::clicked, this, &MainWindow::startTraining);
@@ -51,10 +67,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
             color: #333;
             font-size: 14px;
         }
-        QLineEdit:focus {
-            border: 1px solid #007AFF;
-            outline: none;
-        }
         QPushButton {
             background-color: #007AFF;
             border: none;
@@ -69,21 +81,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
         QPushButton:pressed {
             background-color: #004ba0;
         }
-        QAbstractItemView::item {
-            background-color: #ffffff;
-            color: #333;
-            padding: 6px;
-            border: none;
-        }
-        QAbstractItemView::item:selected {
-            background-color: #99C9FF;
-            color: #007AFF;
-        }
-        QAbstractItemView::item:hover {
-            background-color: #66AFFF;
-            color: #005ecb;
-        }
-
     )";
     setStyleSheet(style);
 }
@@ -108,6 +105,21 @@ QListWidget* MainWindow::createMachineSelector() {
     return selector;
 }
 
+void MainWindow::openWorkerSettings() {
+    QStringList selectedMachines;
+    for (QListWidgetItem *item : machineSelector->selectedItems()) {
+        selectedMachines << item->text();
+    }
+
+    if (selectedMachines.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Не выбраны машины для настройки");
+        return;
+    }
+
+    WorkerSettingsDialog dialog(selectedMachines, this);
+    dialog.exec();
+}
+
 void MainWindow::startTraining() {
     QStringList selectedMachines;
     for (QListWidgetItem *item : machineSelector->selectedItems()) {
@@ -119,11 +131,21 @@ void MainWindow::startTraining() {
         return;
     }
 
-    if (filePath.isEmpty()){
+    if (filePath.isEmpty()) {
         QMessageBox::warning(this, "Ошибка", "Не выбран файл для обучения");
         return;
     }
 
     // Заглушка
     QMessageBox::information(this, "Обучение", "Обучение началось на следующих машинах: " + selectedMachines.join(", "));
+}
+
+// Заглушка для получения данных
+void MainWindow::getData() {
+    QMessageBox::information(this, "Получить данные", "Функционал получения данных будет реализован позже.");
+}
+
+// Заглушка для отправки данных
+void MainWindow::sendData() {
+    QMessageBox::information(this, "Отправить данные", "Функционал отправки данных будет реализован позже.");
 }
