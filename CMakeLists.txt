@@ -23,6 +23,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         authwindow.h authwindow.cpp
+        workersettingsdialog.h
+        workersettingsdialog.h workersettingsdialog.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET chinases_gui APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
