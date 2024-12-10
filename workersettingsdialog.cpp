@@ -1,50 +1,59 @@
 #include "workersettingsdialog.h"
 
-WorkerSettingsDialog::WorkerSettingsDialog(const QStringList &workers, QWidget *parent)
+WorkerSettingsDialog::WorkerSettingsDialog(const QString &workerName, QWidget *parent)
     : QDialog(parent) {
-    setWindowTitle("Настройки воркеров");
-    resize(400, 300);
+    setWindowTitle("Настройки воркера: " + workerName);
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    tabWidget = new QTabWidget(this);
+    QFormLayout *formLayout = new QFormLayout(this);
 
-    for (const QString &workerName : workers) {
-        createWorkerTab(workerName);
-    }
+    ipEdit = new QLineEdit(this);
+    portEdit = new QLineEdit(this);
+    usernameEdit = new QLineEdit(this);
+    passwordEdit = new QLineEdit(this);
+    passwordEdit->setEchoMode(QLineEdit::Password);
 
-    layout->addWidget(tabWidget);
+    formLayout->addRow("IP адрес:", ipEdit);
+    formLayout->addRow("Порт:", portEdit);
+    formLayout->addRow("Имя пользователя:", usernameEdit);
+    formLayout->addRow("Пароль:", passwordEdit);
 
-    QPushButton *saveButton = new QPushButton("Сохранить", this);
-    connect(saveButton, &QPushButton::clicked, this, &QDialog::accept);
-    layout->addWidget(saveButton);
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    setLayout(layout);
+    formLayout->addWidget(buttonBox);
+
+    setLayout(formLayout);
 }
 
-void WorkerSettingsDialog::createWorkerTab(const QString &workerName) {
-    QWidget *tab = new QWidget(this);
-    QVBoxLayout *tabLayout = new QVBoxLayout(tab);
+QString WorkerSettingsDialog::getIP() const {
+    return ipEdit->text();
+}
 
-    QLabel *infoLabel = new QLabel("Настройки для " + workerName, this);
-    tabLayout->addWidget(infoLabel);
+int WorkerSettingsDialog::getPort() const {
+    return portEdit->text().toInt();
+}
 
-    QLineEdit *ipInput = new QLineEdit(this);
-    ipInput->setPlaceholderText("IP адрес");
-    tabLayout->addWidget(ipInput);
+QString WorkerSettingsDialog::getUsername() const {
+    return usernameEdit->text();
+}
 
-    QLineEdit *portInput = new QLineEdit(this);
-    portInput->setPlaceholderText("Порт");
-    tabLayout->addWidget(portInput);
+QString WorkerSettingsDialog::getPassword() const {
+    return passwordEdit->text();
+}
 
-    QLineEdit *loginInput = new QLineEdit(this);
-    loginInput->setPlaceholderText("Логин");
-    tabLayout->addWidget(loginInput);
+void WorkerSettingsDialog::setIP(const QString &ip) {
+    ipEdit->setText(ip);
+}
 
-    QLineEdit *passwordInput = new QLineEdit(this);
-    passwordInput->setPlaceholderText("Пароль");
-    passwordInput->setEchoMode(QLineEdit::Password); // Скрытие введенного текста
-    tabLayout->addWidget(passwordInput);
+void WorkerSettingsDialog::setPort(int port) {
+    portEdit->setText(QString::number(port));
+}
 
-    tab->setLayout(tabLayout);
-    tabWidget->addTab(tab, workerName);
+void WorkerSettingsDialog::setUsername(const QString &username) {
+    usernameEdit->setText(username);
+}
+
+void WorkerSettingsDialog::setPassword(const QString &password) {
+    passwordEdit->setText(password);
 }
