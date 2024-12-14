@@ -48,6 +48,8 @@ private:
     void loadWorkers();         // Загрузка списка воркеров из базы данных
     void deleteWorker(const QString &workerName); // Удаление воркера из базы данных
 
+    QNetworkAccessManager *manager = nullptr;
+
     QButtonGroup *datasetGroup;           // Группа для выбора метода деления датасета
     QButtonGroup *aggregationGroup;       // Группа для выбора метода объединения весов
 
@@ -68,7 +70,6 @@ private:
     QRadioButton *regularizedButton;       // Радиокнопка для regularized
 
     QSqlDatabase db;               // Объект базы данных
-    QNetworkAccessManager *manager; // Менеджер сетевых запросов
 
     QListWidget* createMachineSelector(); // Метод для создания виджета выбора машин
 };

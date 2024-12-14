@@ -468,11 +468,13 @@ void MainWindow::startTraining() {
         if (reply->error() == QNetworkReply::NoError) {
             QMessageBox::information(this, "Успех", "Обучение успешно начато.");
         } else {
-            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "409"){
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 409){
                 QMessageBox::warning(this, "Ошибка", "Уже производится обучение");
             } else {
                 QMessageBox::warning(this, "Ошибка", "Ошибка при загрузке файла: " + reply->errorString());
             }
+
         }
         reply->deleteLater();
     });
