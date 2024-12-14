@@ -284,10 +284,6 @@ void MainWindow::openWorkerSettings() {
 }
 
 
-
-
-
-
 void MainWindow::sendData() {
     if (filePath.isEmpty()) {
         QMessageBox::warning(this, "Ошибка", "Файл для отправки не выбран.");
@@ -402,15 +398,23 @@ void MainWindow::startTraining() {
     }
 
     // Получаем значения из полей ввода
-    int globalEpochs = globalEpochsInput->text().toInt();
-    int localEpochs = localEpochsInput->text().toInt();
+    bool globalOk = false;
+    int globalEpochs = globalEpochsInput->text().toInt(&globalOk);
+    bool localOk = false;
+    int localEpochs = localEpochsInput->text().toInt(&localOk);
 
+    // Проверяем, что оба значения корректно конвертировались в числа
+    if (!globalOk || !localOk) {
+        QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть целым числом.");
+        return;
+    }
 
-
-    /*if (globalEpochs <= 0 || localEpochs <= 0) {
+    // Проверяем, что введенные числа больше 0
+    if (globalEpochs <= 0 || localEpochs <= 0) {
         QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть больше 0.");
         return;
-    }*/
+    }
+
 
     // Загружаем данные о воркерах из базы
     QSqlQuery query("SELECT ip, port, username, password FROM workers");
@@ -439,8 +443,8 @@ void MainWindow::startTraining() {
     QJsonObject json{
         {"aggregation_method", aggregationMethod},
         {"split_method", splitMethod},
-        {"global", globalEpochs}, // Добавляем глобальные эпохи
-        {"local", localEpochs},   // Добавляем локальные эпохи
+        {"global", globalEpochs},
+        {"local", localEpochs},
         {"nodes", nodesArray}
     };
 
@@ -465,7 +469,7 @@ void MainWindow::startTraining() {
             QMessageBox::information(this, "Успех", "Обучение успешно начато.");
         } else {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "409"){
-                QMessageBox::warning(this, "Ошибка", "Производится обучение");
+                QMessageBox::warning(this, "Ошибка", "Уже производится обучение");
             } else {
                 QMessageBox::warning(this, "Ошибка", "Ошибка при загрузке файла: " + reply->errorString());
             }
