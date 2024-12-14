@@ -64,17 +64,17 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     aggregationGroup = new QButtonGroup(this);
     QVBoxLayout *aggregationLayout = new QVBoxLayout();
 
-    simple_averageButtton = new QRadioButton("simple_average", this);
+    simple_averageButton = new QRadioButton("simple_average", this);
     medianButton = new QRadioButton("median", this);
-    regularizedButtton = new QRadioButton("regularized", this);
+    regularizedButton = new QRadioButton("regularized", this);
 
-    aggregationGroup->addButton(simple_averageButtton);
+    aggregationGroup->addButton(simple_averageButton);
     aggregationGroup->addButton(medianButton);
-    aggregationGroup->addButton(regularizedButtton);
+    aggregationGroup->addButton(regularizedButton);
 
-    aggregationLayout->addWidget(simple_averageButtton);
+    aggregationLayout->addWidget(simple_averageButton);
     aggregationLayout->addWidget(medianButton);
-    aggregationLayout->addWidget(regularizedButtton);
+    aggregationLayout->addWidget(regularizedButton);
 
 
 
@@ -98,11 +98,11 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     layout->addWidget(startTrainingButton);
 
     QLabel *globalEpochsLabel = new QLabel("Количество глобальных эпох:");
-    QLineEdit *globalEpochsInput = new QLineEdit(this);
+    globalEpochsInput = new QLineEdit(this);
     globalEpochsInput->setPlaceholderText("Введите количество глобальных эпох");
 
     QLabel *localEpochsLabel = new QLabel("Количество локальных эпох:");
-    QLineEdit *localEpochsInput = new QLineEdit(this);
+    localEpochsInput = new QLineEdit(this);
     localEpochsInput->setPlaceholderText("Введите количество локальных эпох");
 
     // Добавление виджетов в основной layout
@@ -284,6 +284,97 @@ void MainWindow::openWorkerSettings() {
 }
 
 
+
+
+
+
+void MainWindow::sendData() {
+    if (filePath.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Файл для отправки не выбран.");
+        return;
+    }
+
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QUrl url("http://192.168.31.88:8000/upload");
+    QNetworkRequest request(url);
+
+    // Указываем тип содержимого как multipart/form-data
+    QString boundary = "---QtBoundary123456789"; // Уникальная граница для multipart данных
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + boundary);
+    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
+
+
+    // Создаем данные для отправки
+    QByteArray postData;
+    postData.append(("--" + boundary + "\r\n").toUtf8());
+    postData.append(("Content-Disposition: form-data; name=\"file\"; filename=\"" + QFileInfo(filePath).fileName() + "\"\r\n").toUtf8());
+    postData.append("Content-Type: application/octet-stream\r\n\r\n");
+
+
+    // Читаем содержимое файла и добавляем его к postData
+    QFile file(filePath);
+
+    postData.append(file.readAll());
+    file.close();
+
+    postData.append(("\r\n--" + boundary + "--\r\n").toUtf8());
+
+    // Отправляем запрос
+    QNetworkReply *reply = manager->post(request, postData);
+
+    // Обрабатываем ответ
+    connect(reply, &QNetworkReply::finished, this, [reply, this]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QMessageBox::information(this, "Успех", "Файл успешно отправлен.");
+        } else {
+            QMessageBox::warning(this, "Ошибка", "Ошибка при отправке файла: " + reply->errorString());
+        }
+        reply->deleteLater();
+    });
+}
+
+void MainWindow::getData() {
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QUrl url("http://192.168.31.88:8000/get");
+    QNetworkRequest request(url);
+
+    // Указываем заголовок для авторизации
+    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
+
+    // Отправляем GET-запрос
+    QNetworkReply *reply = manager->get(request);
+
+    // Обрабатываем ответ
+    connect(reply, &QNetworkReply::finished, this, [reply, this]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            // Получаем бинарный файл из ответа
+            QByteArray fileData = reply->readAll();
+
+            // Сохраняем файл
+            QString savePath = QFileDialog::getSaveFileName(this, "Сохранить файл", "", "TensorFlow Models (*.pt)");
+            if (!savePath.isEmpty()) {
+                QFile file(savePath);
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(fileData);
+                    file.close();
+                    QMessageBox::information(this, "Успех", "Файл успешно загружен и сохранен.");
+                } else {
+                    QMessageBox::warning(this, "Ошибка", "Не удалось сохранить файл.");
+                }
+            }
+        } else {
+            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "409"){
+                QMessageBox::warning(this, "Ошибка", "Производится обучение");
+            } else if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) =="400"){
+                QMessageBox::warning(this, "Ошибка", "Обучение еще не проводилось");
+            } else {
+                QMessageBox::warning(this, "Ошибка", "Ошибка при загрузке файла: " + reply->errorString());
+            }
+        }
+        reply->deleteLater();
+    });
+}
+
 void MainWindow::startTraining() {
     qDebug() << "Запуск обучения...";
 
@@ -294,14 +385,14 @@ void MainWindow::startTraining() {
     }
 
     if (!randomSplitButton || !stratifiedSplitButton ||
-        !simple_averageButtton || !medianButton) {
+        !simple_averageButton || !medianButton) {
         QMessageBox::critical(this, "Ошибка", "Радиокнопки не инициализированы.");
         return;
     }
 
     // Определяем методы агрегации и деления датасета
-    QString aggregationMethod = simple_averageButtton->isChecked() ? "simple_average" :
-                                    medianButton->isChecked() ? "median" : regularizedButtton->isChecked() ? "regularized" : "";
+    QString aggregationMethod = simple_averageButton->isChecked() ? "simple_average" :
+                                    medianButton->isChecked() ? "median" : regularizedButton->isChecked() ? "regularized" : "";
     QString splitMethod = randomSplitButton->isChecked() ? "random" :
                               stratifiedSplitButton->isChecked() ? "stratified" : "";
 
@@ -314,10 +405,12 @@ void MainWindow::startTraining() {
     int globalEpochs = globalEpochsInput->text().toInt();
     int localEpochs = localEpochsInput->text().toInt();
 
-    if (globalEpochs <= 0 || localEpochs <= 0) {
+
+
+    /*if (globalEpochs <= 0 || localEpochs <= 0) {
         QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть больше 0.");
         return;
-    }
+    }*/
 
     // Загружаем данные о воркерах из базы
     QSqlQuery query("SELECT ip, port, username, password FROM workers");
@@ -371,49 +464,8 @@ void MainWindow::startTraining() {
         if (reply->error() == QNetworkReply::NoError) {
             QMessageBox::information(this, "Успех", "Обучение успешно начато.");
         } else {
-            QMessageBox::warning(this, "Ошибка", "Ошибка при запуске обучения: " + reply->errorString());
-        }
-        reply->deleteLater();
-    });
-}
-
-
-
-
-void MainWindow::getData() {
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QUrl url("http://192.168.31.88:8000/get");
-    QNetworkRequest request(url);
-
-    // Указываем заголовок для авторизации
-    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
-
-    // Отправляем GET-запрос
-    QNetworkReply *reply = manager->get(request);
-
-    // Обрабатываем ответ
-    connect(reply, &QNetworkReply::finished, this, [reply, this]() {
-        if (reply->error() == QNetworkReply::NoError) {
-            // Получаем бинарный файл из ответа
-            QByteArray fileData = reply->readAll();
-
-            // Сохраняем файл
-            QString savePath = QFileDialog::getSaveFileName(this, "Сохранить файл", "", "TensorFlow Models (*.pt)");
-            if (!savePath.isEmpty()) {
-                QFile file(savePath);
-                if (file.open(QIODevice::WriteOnly)) {
-                    file.write(fileData);
-                    file.close();
-                    QMessageBox::information(this, "Успех", "Файл успешно загружен и сохранен.");
-                } else {
-                    QMessageBox::warning(this, "Ошибка", "Не удалось сохранить файл.");
-                }
-            }
-        } else {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "409"){
-                QMessageBox::warning(this, "Ошибка", "В данный момент проводится обучение");
-            } else if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "400"){
-                QMessageBox::warning(this, "Ошибка", "Обучение еще не проводилось");
+                QMessageBox::warning(this, "Ошибка", "Производится обучение");
             } else {
                 QMessageBox::warning(this, "Ошибка", "Ошибка при загрузке файла: " + reply->errorString());
             }
@@ -421,50 +473,3 @@ void MainWindow::getData() {
         reply->deleteLater();
     });
 }
-
-
-void MainWindow::sendData() {
-    if (filePath.isEmpty()) {
-        QMessageBox::warning(this, "Ошибка", "Файл для отправки не выбран.");
-        return;
-    }
-
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QUrl url("http://192.168.31.88:8000/upload");
-    QNetworkRequest request(url);
-
-    // Указываем тип содержимого как multipart/form-data
-    QString boundary = "---QtBoundary123456789"; // Уникальная граница для multipart данных
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + boundary);
-    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
-
-
-    // Создаем данные для отправки
-    QByteArray postData;
-    postData.append(("--" + boundary + "\r\n").toUtf8());
-    postData.append(("Content-Disposition: form-data; name=\"file\"; filename=\"" + QFileInfo(filePath).fileName() + "\"\r\n").toUtf8());
-    postData.append("Content-Type: application/octet-stream\r\n\r\n");
-
-
-    // Читаем содержимое файла и добавляем его к postData
-    QFile file(filePath);
-
-    postData.append(file.readAll());
-    file.close();
-
-    postData.append(("\r\n--" + boundary + "--\r\n").toUtf8());
-
-    // Отправляем запрос
-    QNetworkReply *reply = manager->post(request, postData);
-
-    // Обрабатываем ответ
-    connect(reply, &QNetworkReply::finished, this, [reply, this]() {
-        if (reply->error() == QNetworkReply::NoError) {
-            QMessageBox::information(this, "Успех", "Файл успешно отправлен.");
-        } else {
-            QMessageBox::warning(this, "Ошибка", "Ошибка при отправке файла: " + reply->errorString());
-        }
-        reply->deleteLater();
-    });
-}
-
