@@ -1,115 +1,136 @@
-#include "authwindow.h"
-#include "iostream"
-#include "mainwindow.h"
-#include <QMessageBox>
+// authwindow.cpp
 
-AuthWindow::AuthWindow(QWidget *parent) : QWidget(parent) {
+#include "authwindow.h"
+#include "mainwindow.h" // Убедитесь, что этот заголовочный файл существует и корректен
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QMessageBox>
+#include <QDebug>
+
+AuthWindow::AuthWindow(QWidget *parent)
+    : QWidget(parent), manager(new QNetworkAccessManager(this)), authToken("") {
+
     setWindowTitle("Админ-авторизация");
     setMinimumSize(300, 200);
 
+    // Создаем основной вертикальный макет
     auto *layout = new QVBoxLayout(this);
 
+    // Заголовок окна
     QLabel *titleLabel = new QLabel("Вход администратора");
     titleLabel->setAlignment(Qt::AlignCenter);
+    QFont titleFont = titleLabel->font();
+    titleFont.setPointSize(14);
+    titleFont.setBold(true);
+    titleLabel->setFont(titleFont);
     layout->addWidget(titleLabel);
 
+    // Поле ввода логина
     usernameInput = new QLineEdit(this);
     usernameInput->setPlaceholderText("Логин");
     layout->addWidget(usernameInput);
 
+    // Поле ввода пароля
     passwordInput = new QLineEdit(this);
     passwordInput->setPlaceholderText("Пароль");
     passwordInput->setEchoMode(QLineEdit::Password);
     layout->addWidget(passwordInput);
 
+    // Кнопка "Войти"
     loginButton = new QPushButton("Войти", this);
     connect(loginButton, &QPushButton::clicked, this, &AuthWindow::handleLogin);
     layout->addWidget(loginButton);
 
-    registerButton = new QPushButton("Зарегистрироваться", this);
-    connect(registerButton, &QPushButton::clicked, this, &AuthWindow::handleRegister);
-    layout->addWidget(registerButton);
-
-
-
+    // Устанавливаем макет для окна
     setLayout(layout);
+
+    connect(this, &AuthWindow::onloginSuccess, this, &AuthWindow::loginSuccess);
+    connect(this, &AuthWindow::onloginFailed, this, &AuthWindow::loginFailed);
 }
 
-bool AuthWindow::checkCredentials(const QString &username, const QString &password) {
-    QFile file("users.csv");
-    qDebug() << "Файл будет создан здесь: " << QFileInfo(file).absoluteFilePath();
-    if (!file.exists()) {
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QMessageBox::critical(this, "Ошибка", "Не удалось создать файл");
-            return false;
-        }
-        file.close();
-    }
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "Ошибка", "Не удалось открыть файл для чтения");
-        return false;
-    }
-    QTextStream in(&file);
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList parts = line.split(",");
-        if (parts.size() == 2) {
-            QString storedUsername = parts[0].trimmed();
-            QString storedPassword = parts[1].trimmed();
-            if (storedUsername == username) {
-                if (storedPassword == password) {
-                    return true;
-
-                }
-            }
-        }
-    }
-
-    return false;
+QString AuthWindow::getAuthToken() {
+    return authToken;
 }
 
 void AuthWindow::handleLogin() {
-    if (usernameInput->text().isEmpty() || passwordInput->text().isEmpty()) {
-        QMessageBox::warning(this, "Ошибка", "Поле ввода не заполнено");
-        return;
-    }
-
-    QString username = usernameInput->text();
-    QString password = usernameInput->text();
-
-    if (checkCredentials(username, password)) {
-        auto *mainWindow = new MainWindow();
-        mainWindow->show();
-        hide();
-    } else {
-        QMessageBox::warning(this, "Ошибка", "Неверный логин или пароль");
-    }
-}
-
-void AuthWindow::handleRegister() {
-    if (usernameInput->text().isEmpty() || passwordInput->text().isEmpty()) {
-        QMessageBox::warning(this, "Ошибка", "Поле ввода не заполнено");
-        return;
-    }
-
-    QString username = usernameInput->text();
+    QString username = usernameInput->text().trimmed();
     QString password = passwordInput->text();
 
-    if (checkCredentials(username,password)) {
-        QMessageBox::warning(this, "Ошибка", "Пользователь с таким логином уже существует");
+    if (username.isEmpty() || password.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Пожалуйста, введите логин и пароль.");
         return;
     }
 
-    QFile file("users.csv");
-    if (!file.open(QIODevice::Append | QIODevice::Text)) {
-        QMessageBox::critical(this, "Ошибка", "Не удалось открыть файл для записи");
-        return;
-    }
-
-    QTextStream out(&file);
-    out << username << "," << password << "\n";
-    file.close();
-
-    QMessageBox::information(this, "Успех", "Регистрация завершена!");
+    // Отправляем запрос на проверку учетных данных
+    checkCredentials(username, password);
 }
 
+void AuthWindow::checkCredentials(const QString &username, const QString &password) {
+    QUrl url("http://192.168.31.88:8000/auth"); // Замените на ваш реальный URL
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    // Формируем JSON с учетными данными
+    QJsonObject json;
+    json["username"] = username;
+    json["password"] = password;
+
+    QJsonDocument doc(json);
+    QByteArray data = doc.toJson();
+
+    qDebug() << "Отправка запроса на аутентификацию:" << QString(data);
+
+    // Отправляем POST-запрос
+    QNetworkReply *reply = manager->post(request, data);
+
+    // Обрабатываем ответ с помощью лямбда-функции
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray response = reply->readAll();
+            qDebug() << "Ответ от сервера:" << QString(response);
+
+            QJsonDocument responseDoc = QJsonDocument::fromJson(response);
+
+            if (responseDoc.isObject()) {
+                QJsonObject responseObj = responseDoc.object();
+
+                if (responseObj.contains("token")) {
+                    authToken = responseObj["token"].toString();
+                    qDebug() << "Получен токен:" << authToken;
+                    emit onloginSuccess();
+                } else if (responseObj.contains("detail")) {
+                    QString errorMessage = responseObj["detail"].toString();
+                    emit onloginFailed(errorMessage);
+                } else {
+                    emit onloginFailed("Неизвестный формат ответа от сервера.");
+                }
+            } else {
+                emit onloginFailed("Неверный формат ответа от сервера.");
+            }
+        } else {
+            emit onloginFailed("Сетевая ошибка: " + reply->errorString());
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void AuthWindow::loginSuccess() {
+    QMessageBox::information(this, "Успех", "Вы успешно вошли в систему.");
+
+    this->close();
+
+    MainWindow *mainWindow = new MainWindow();
+    mainWindow->setAuthToken(this->getAuthToken()); //передача в мейн токена
+    mainWindow->show();
+}
+
+void AuthWindow::loginFailed(const QString &errorMessage) {
+    QMessageBox::warning(this, "Ошибка входа", "Ошибка: " + errorMessage);
+
+    passwordInput->clear();
+    passwordInput->setFocus();
+}
