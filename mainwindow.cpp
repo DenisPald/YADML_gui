@@ -1,9 +1,12 @@
 #include "mainwindow.h"
+#include "authwindow.h"
 #include "workersettingsdialog.h"
+
+
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     setWindowTitle("Распределенное обучение");
-    setMinimumSize(400, 300);
+    setMinimumSize(1000, 700);
 
     auto *layout = new QVBoxLayout(this);
 
@@ -37,6 +40,47 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
     layout->addLayout(workerButtonsLayout);
 
+    // Настройка выбора метода деления датасета
+    QLabel *datasetLabel = new QLabel("Выберите метод деления датасета:");
+    layout->addWidget(datasetLabel);
+
+    datasetGroup = new QButtonGroup(this);
+    QVBoxLayout *datasetLayout = new QVBoxLayout();
+
+    randomSplitButton = new QRadioButton("Случайное деление", this);
+    stratifiedSplitButton = new QRadioButton("Стратифицированное деление", this);
+
+    datasetGroup->addButton(randomSplitButton);
+    datasetGroup->addButton(stratifiedSplitButton);
+    datasetLayout->addWidget(randomSplitButton);
+    datasetLayout->addWidget(stratifiedSplitButton);
+
+    layout->addLayout(datasetLayout);
+
+    // Настройка выбора метода агрегации весов
+    QLabel *aggregationLabel = new QLabel("Выберите метод объединения весов:");
+    layout->addWidget(aggregationLabel);
+
+    aggregationGroup = new QButtonGroup(this);
+    QVBoxLayout *aggregationLayout = new QVBoxLayout();
+
+    simple_averageButton = new QRadioButton("simple_average", this);
+    medianButton = new QRadioButton("median", this);
+    regularizedButton = new QRadioButton("regularized", this);
+
+    aggregationGroup->addButton(simple_averageButton);
+    aggregationGroup->addButton(medianButton);
+    aggregationGroup->addButton(regularizedButton);
+
+    aggregationLayout->addWidget(simple_averageButton);
+    aggregationLayout->addWidget(medianButton);
+    aggregationLayout->addWidget(regularizedButton);
+
+
+
+    layout->addLayout(aggregationLayout);
+
+    // Кнопки для открытия настроек и получения/отправки данных
     QPushButton *settingsButton = new QPushButton("Открыть настройки воркеров", this);
     connect(settingsButton, &QPushButton::clicked, this, &MainWindow::openWorkerSettings);
     layout->addWidget(settingsButton);
@@ -53,11 +97,29 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     connect(startTrainingButton, &QPushButton::clicked, this, &MainWindow::startTraining);
     layout->addWidget(startTrainingButton);
 
+    QLabel *globalEpochsLabel = new QLabel("Количество глобальных эпох:");
+    globalEpochsInput = new QLineEdit(this);
+    globalEpochsInput->setPlaceholderText("Введите количество глобальных эпох");
+
+    QLabel *localEpochsLabel = new QLabel("Количество локальных эпох:");
+    localEpochsInput = new QLineEdit(this);
+    localEpochsInput->setPlaceholderText("Введите количество локальных эпох");
+
+    // Добавление виджетов в основной layout
+    layout->addWidget(globalEpochsLabel);
+    layout->addWidget(globalEpochsInput);
+
+    layout->addWidget(localEpochsLabel);
+    layout->addWidget(localEpochsInput);
+
     setLayout(layout);
 
     setupDatabase(); // Настраиваем базу данных
     loadWorkers();   // Загружаем воркеров из базы данных
+
+
 }
+
 
 void MainWindow::setupDatabase() {
     db = QSqlDatabase::addDatabase("QSQLITE");
@@ -222,29 +284,196 @@ void MainWindow::openWorkerSettings() {
 }
 
 
-void MainWindow::startTraining() {
-    QStringList selectedMachines;
-    for (QListWidgetItem *item : machineSelector->selectedItems()) {
-        selectedMachines << item->text();
-    }
-
-    if (selectedMachines.isEmpty()) {
-        QMessageBox::warning(this, "Ошибка", "Не выбраны машины для обучения");
-        return;
-    }
-
+void MainWindow::sendData() {
     if (filePath.isEmpty()) {
-        QMessageBox::warning(this, "Ошибка", "Не выбран файл для обучения");
+        QMessageBox::warning(this, "Ошибка", "Файл для отправки не выбран.");
         return;
     }
 
-    QMessageBox::information(this, "Обучение", "Обучение началось на следующих машинах: " + selectedMachines.join(", "));
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QUrl url("http://192.168.31.88:8000/upload");
+    QNetworkRequest request(url);
+
+    // Указываем тип содержимого как multipart/form-data
+    QString boundary = "---QtBoundary123456789"; // Уникальная граница для multipart данных
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + boundary);
+    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
+
+
+    // Создаем данные для отправки
+    QByteArray postData;
+    postData.append(("--" + boundary + "\r\n").toUtf8());
+    postData.append(("Content-Disposition: form-data; name=\"file\"; filename=\"" + QFileInfo(filePath).fileName() + "\"\r\n").toUtf8());
+    postData.append("Content-Type: application/octet-stream\r\n\r\n");
+
+
+    // Читаем содержимое файла и добавляем его к postData
+    QFile file(filePath);
+
+    postData.append(file.readAll());
+    file.close();
+
+    postData.append(("\r\n--" + boundary + "--\r\n").toUtf8());
+
+    // Отправляем запрос
+    QNetworkReply *reply = manager->post(request, postData);
+
+    // Обрабатываем ответ
+    connect(reply, &QNetworkReply::finished, this, [reply, this]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QMessageBox::information(this, "Успех", "Файл успешно отправлен.");
+        } else {
+            QMessageBox::warning(this, "Ошибка", "Ошибка при отправке файла: " + reply->errorString());
+        }
+        reply->deleteLater();
+    });
 }
 
 void MainWindow::getData() {
-    QMessageBox::information(this, "Получить данные", "Функционал получения данных будет реализован позже.");
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QUrl url("http://192.168.31.88:8000/get");
+    QNetworkRequest request(url);
+
+    // Указываем заголовок для авторизации
+    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
+
+    // Отправляем GET-запрос
+    QNetworkReply *reply = manager->get(request);
+
+    // Обрабатываем ответ
+    connect(reply, &QNetworkReply::finished, this, [reply, this]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            // Получаем бинарный файл из ответа
+            QByteArray fileData = reply->readAll();
+
+            // Сохраняем файл
+            QString savePath = QFileDialog::getSaveFileName(this, "Сохранить файл", "", "TensorFlow Models (*.pt)");
+            if (!savePath.isEmpty()) {
+                QFile file(savePath);
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(fileData);
+                    file.close();
+                    QMessageBox::information(this, "Успех", "Файл успешно загружен и сохранен.");
+                } else {
+                    QMessageBox::warning(this, "Ошибка", "Не удалось сохранить файл.");
+                }
+            }
+        } else {
+            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "409"){
+                QMessageBox::warning(this, "Ошибка", "Производится обучение");
+            } else if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) =="400"){
+                QMessageBox::warning(this, "Ошибка", "Обучение еще не проводилось");
+            } else {
+                QMessageBox::warning(this, "Ошибка", "Ошибка при загрузке файла: " + reply->errorString());
+            }
+        }
+        reply->deleteLater();
+    });
 }
 
-void MainWindow::sendData() {
-    QMessageBox::information(this, "Отправить данные", "Функционал отправки данных будет реализован позже.");
+void MainWindow::startTraining() {
+    qDebug() << "Запуск обучения...";
+
+    // Проверяем подключение к базе данных
+    if (!db.isOpen()) {
+        QMessageBox::critical(this, "Ошибка", "Не удалось подключиться к базе данных.");
+        return;
+    }
+
+    if (!randomSplitButton || !stratifiedSplitButton ||
+        !simple_averageButton || !medianButton) {
+        QMessageBox::critical(this, "Ошибка", "Радиокнопки не инициализированы.");
+        return;
+    }
+
+    // Определяем методы агрегации и деления датасета
+    QString aggregationMethod = simple_averageButton->isChecked() ? "simple_average" :
+                                    medianButton->isChecked() ? "median" : regularizedButton->isChecked() ? "regularized" : "";
+    QString splitMethod = randomSplitButton->isChecked() ? "random" :
+                              stratifiedSplitButton->isChecked() ? "stratified" : "";
+
+    if (aggregationMethod.isEmpty() || splitMethod.isEmpty()) {
+        QMessageBox::critical(this, "Ошибка", "Не выбраны методы агрегации или деления датасета.");
+        return;
+    }
+
+    // Получаем значения из полей ввода
+    bool globalOk = false;
+    int globalEpochs = globalEpochsInput->text().toInt(&globalOk);
+    bool localOk = false;
+    int localEpochs = localEpochsInput->text().toInt(&localOk);
+
+    // Проверяем, что оба значения корректно конвертировались в числа
+    if (!globalOk || !localOk) {
+        QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть целым числом.");
+        return;
+    }
+
+    // Проверяем, что введенные числа больше 0
+    if (globalEpochs <= 0 || localEpochs <= 0) {
+        QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть больше 0.");
+        return;
+    }
+
+
+    // Загружаем данные о воркерах из базы
+    QSqlQuery query("SELECT ip, port, username, password FROM workers");
+    if (!query.exec()) {
+        QMessageBox::critical(this, "Ошибка", "Не удалось выполнить запрос к базе данных: " + query.lastError().text());
+        return;
+    }
+
+    if (!query.first()) {
+        QMessageBox::critical(this, "Ошибка", "Нет данных о воркерах в базе.");
+        return;
+    }
+
+    // Формируем JSON для запроса
+    QJsonArray nodesArray;
+    do {
+        QJsonObject nodeObject{
+            {"hostname", query.value(0).toString()},
+            {"port", query.value(1).toString()},
+            {"username", query.value(2).toString()},
+            {"password", query.value(3).toString()}
+        };
+        nodesArray.append(nodeObject);
+    } while (query.next());
+
+    QJsonObject json{
+        {"aggregation_method", aggregationMethod},
+        {"split_method", splitMethod},
+        {"global", globalEpochs},
+        {"local", localEpochs},
+        {"nodes", nodesArray}
+    };
+
+    QByteArray jsonData = QJsonDocument(json).toJson(QJsonDocument::Compact);
+
+    // Инициализируем менеджер при необходимости
+    if (!manager) {
+        manager = new QNetworkAccessManager(this);
+    }
+
+    // Настраиваем запрос
+    QUrl url("http://192.168.31.88:8000/run");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
+
+    // Отправляем запрос в формате JSON
+    QNetworkReply *reply = manager->post(request, jsonData);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QMessageBox::information(this, "Успех", "Обучение успешно начато.");
+        } else {
+            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == "409"){
+                QMessageBox::warning(this, "Ошибка", "Уже производится обучение");
+            } else {
+                QMessageBox::warning(this, "Ошибка", "Ошибка при загрузке файла: " + reply->errorString());
+            }
+        }
+        reply->deleteLater();
+    });
 }
