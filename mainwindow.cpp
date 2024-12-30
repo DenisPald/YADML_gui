@@ -1,7 +1,6 @@
 #include "mainwindow.h"
-#include "authwindow.h"
 #include "workersettingsdialog.h"
-
+#include "authwindow.h"
 
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
@@ -40,7 +39,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
     layout->addLayout(workerButtonsLayout);
 
-    // Настройка выбора метода деления датасета
     QLabel *datasetLabel = new QLabel("Выберите метод деления датасета:");
     layout->addWidget(datasetLabel);
 
@@ -57,7 +55,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
     layout->addLayout(datasetLayout);
 
-    // Настройка выбора метода агрегации весов
     QLabel *aggregationLabel = new QLabel("Выберите метод объединения весов:");
     layout->addWidget(aggregationLabel);
 
@@ -76,11 +73,8 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     aggregationLayout->addWidget(medianButton);
     aggregationLayout->addWidget(regularizedButton);
 
-
-
     layout->addLayout(aggregationLayout);
 
-    // Кнопки для открытия настроек и получения/отправки данных
     QPushButton *settingsButton = new QPushButton("Открыть настройки воркеров", this);
     connect(settingsButton, &QPushButton::clicked, this, &MainWindow::openWorkerSettings);
     layout->addWidget(settingsButton);
@@ -105,7 +99,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     localEpochsInput = new QLineEdit(this);
     localEpochsInput->setPlaceholderText("Введите количество локальных эпох");
 
-    // Добавление виджетов в основной layout
     layout->addWidget(globalEpochsLabel);
     layout->addWidget(globalEpochsInput);
 
@@ -114,12 +107,11 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
     setLayout(layout);
 
-    setupDatabase(); // Настраиваем базу данных
-    loadWorkers();   // Загружаем воркеров из базы данных
+    setupDatabase();
+    loadWorkers();
 
 
 }
-
 
 void MainWindow::setupDatabase() {
     db = QSqlDatabase::addDatabase("QSQLITE");
@@ -143,7 +135,6 @@ void MainWindow::setupDatabase() {
     )");
 }
 
-
 void MainWindow::loadWorkers() {
     machineSelector->clear();
 
@@ -162,7 +153,7 @@ void MainWindow::deleteWorker(const QString &workerName) {
 }
 
 void MainWindow::loadMatrix() {
-    filePath = QFileDialog::getOpenFileName(this, "Выберите файл матрицы", "", "Matrix Files (*.txt *.csv)");
+    filePath = QFileDialog::getOpenFileName(this, "Выберите файл матрицы", "", "Matrix Files (*.txt *.csv *.pt)");
     if (!filePath.isEmpty()) {
         filePathInput->setText(filePath);
     }
@@ -179,10 +170,10 @@ void MainWindow::addWorker() {
     QString workerName = QInputDialog::getText(this, "Добавить нового воркера", "Введите имя воркера:", QLineEdit::Normal, "", &ok);
 
     if (!ok || workerName.isEmpty()) {
-        return; // Пользователь отменил ввод
+        return;
     }
 
-    // Проверяем, есть ли воркер с таким именем в базе
+
     QSqlQuery checkQuery;
     checkQuery.prepare("SELECT COUNT(*) FROM workers WHERE name = :name");
     checkQuery.bindValue(":name", workerName);
@@ -196,24 +187,22 @@ void MainWindow::addWorker() {
         return;
     }
 
-    // Добавляем нового воркера в базу данных
     QSqlQuery insertQuery;
     insertQuery.prepare(R"(
         INSERT INTO workers (name, ip, port, username, password)
         VALUES (:name, :ip, :port, :username, :password)
     )");
-    insertQuery.bindValue(":name", workerName);
-    insertQuery.bindValue(":ip", "127.0.0.1");  // Значение по умолчанию
-    insertQuery.bindValue(":port", 8080);      // Значение по умолчанию
-    insertQuery.bindValue(":username", "");   // Пустой логин
-    insertQuery.bindValue(":password", "");   // Пустой пароль
+    insertQuery.bindValue(":name", workerName); //значеня по умолчанию
+    insertQuery.bindValue(":ip", "127.0.0.1");
+    insertQuery.bindValue(":port", 8080);
+    insertQuery.bindValue(":username", "");
+    insertQuery.bindValue(":password", "");
 
     if (!insertQuery.exec()) {
         QMessageBox::warning(this, "Ошибка", "Не удалось добавить воркера в базу данных.");
         return;
     }
 
-    // Добавляем нового воркера в QListWidget
     machineSelector->addItem(workerName);
 
     QMessageBox::information(this, "Успех", "Новый воркер успешно добавлен.");
@@ -228,8 +217,8 @@ void MainWindow::removeWorker() {
     }
 
     for (QListWidgetItem *item : selectedItems) {
-        deleteWorker(item->text());  // Удаляем из базы данных
-        delete machineSelector->takeItem(machineSelector->row(item)); // Удаляем из списка
+        deleteWorker(item->text());
+        delete machineSelector->takeItem(machineSelector->row(item));
     }
 }
 
@@ -242,8 +231,6 @@ void MainWindow::openWorkerSettings() {
 
     for (QListWidgetItem *item : selectedItems) {
         QString workerName = item->text();
-
-        // Получаем текущие параметры из базы данных
         QSqlQuery query;
         query.prepare("SELECT ip, port, username, password FROM workers WHERE name = :name");
         query.bindValue(":name", workerName);
@@ -264,7 +251,6 @@ void MainWindow::openWorkerSettings() {
         dialog.setPassword(password);
 
         if (dialog.exec() == QDialog::Accepted) {
-            // Сохраняем обновленные параметры
             QSqlQuery updateQuery;
             updateQuery.prepare(R"(
                 UPDATE workers
@@ -290,35 +276,33 @@ void MainWindow::sendData() {
         return;
     }
 
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось открыть файл для чтения.");
+        return;
+    }
+
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QUrl url("http://192.168.31.88:8000/upload");
+    QUrl url("http://" + ip_adress + "/upload");
     QNetworkRequest request(url);
 
-    // Указываем тип содержимого как multipart/form-data
-    QString boundary = "---QtBoundary123456789"; // Уникальная граница для multipart данных
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + boundary);
+    QString boundary = "---QtBoundary123456789";
+    QString contentType = "multipart/form-data; boundary=" + boundary;
+    request.setHeader(QNetworkRequest::ContentTypeHeader, contentType.toUtf8());
     request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
 
-
-    // Создаем данные для отправки
     QByteArray postData;
     postData.append(("--" + boundary + "\r\n").toUtf8());
     postData.append(("Content-Disposition: form-data; name=\"file\"; filename=\"" + QFileInfo(filePath).fileName() + "\"\r\n").toUtf8());
     postData.append("Content-Type: application/octet-stream\r\n\r\n");
-
-
-    // Читаем содержимое файла и добавляем его к postData
-    QFile file(filePath);
 
     postData.append(file.readAll());
     file.close();
 
     postData.append(("\r\n--" + boundary + "--\r\n").toUtf8());
 
-    // Отправляем запрос
     QNetworkReply *reply = manager->post(request, postData);
 
-    // Обрабатываем ответ
     connect(reply, &QNetworkReply::finished, this, [reply, this]() {
         if (reply->error() == QNetworkReply::NoError) {
             QMessageBox::information(this, "Успех", "Файл успешно отправлен.");
@@ -331,22 +315,15 @@ void MainWindow::sendData() {
 
 void MainWindow::getData() {
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QUrl url("http://192.168.31.88:8000/get");
+    QUrl url("http://" + ip_adress + "/get");
+    qDebug() << ip_adress;
     QNetworkRequest request(url);
-
-    // Указываем заголовок для авторизации
     request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
-
-    // Отправляем GET-запрос
     QNetworkReply *reply = manager->get(request);
 
-    // Обрабатываем ответ
     connect(reply, &QNetworkReply::finished, this, [reply, this]() {
         if (reply->error() == QNetworkReply::NoError) {
-            // Получаем бинарный файл из ответа
             QByteArray fileData = reply->readAll();
-
-            // Сохраняем файл
             QString savePath = QFileDialog::getSaveFileName(this, "Сохранить файл", "", "TensorFlow Models (*.pt)");
             if (!savePath.isEmpty()) {
                 QFile file(savePath);
@@ -373,8 +350,6 @@ void MainWindow::getData() {
 
 void MainWindow::startTraining() {
     qDebug() << "Запуск обучения...";
-
-    // Проверяем подключение к базе данных
     if (!db.isOpen()) {
         QMessageBox::critical(this, "Ошибка", "Не удалось подключиться к базе данных.");
         return;
@@ -386,7 +361,6 @@ void MainWindow::startTraining() {
         return;
     }
 
-    // Определяем методы агрегации и деления датасета
     QString aggregationMethod = simple_averageButton->isChecked() ? "simple_average" :
                                     medianButton->isChecked() ? "median" : regularizedButton->isChecked() ? "regularized" : "";
     QString splitMethod = randomSplitButton->isChecked() ? "random" :
@@ -397,26 +371,21 @@ void MainWindow::startTraining() {
         return;
     }
 
-    // Получаем значения из полей ввода
     bool globalOk = false;
     int globalEpochs = globalEpochsInput->text().toInt(&globalOk);
     bool localOk = false;
     int localEpochs = localEpochsInput->text().toInt(&localOk);
 
-    // Проверяем, что оба значения корректно конвертировались в числа
     if (!globalOk || !localOk) {
         QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть целым числом.");
         return;
     }
 
-    // Проверяем, что введенные числа больше 0
     if (globalEpochs <= 0 || localEpochs <= 0) {
         QMessageBox::critical(this, "Ошибка", "Количество эпох должно быть больше 0.");
         return;
     }
 
-
-    // Загружаем данные о воркерах из базы
     QSqlQuery query("SELECT ip, port, username, password FROM workers");
     if (!query.exec()) {
         QMessageBox::critical(this, "Ошибка", "Не удалось выполнить запрос к базе данных: " + query.lastError().text());
@@ -428,7 +397,6 @@ void MainWindow::startTraining() {
         return;
     }
 
-    // Формируем JSON для запроса
     QJsonArray nodesArray;
     do {
         QJsonObject nodeObject{
@@ -450,18 +418,15 @@ void MainWindow::startTraining() {
 
     QByteArray jsonData = QJsonDocument(json).toJson(QJsonDocument::Compact);
 
-    // Инициализируем менеджер при необходимости
     if (!manager) {
         manager = new QNetworkAccessManager(this);
     }
 
-    // Настраиваем запрос
-    QUrl url("http://192.168.31.88:8000/run");
+    QUrl url("http://" + ip_adress + "/run");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", "Bearer " + authToken.toUtf8());
 
-    // Отправляем запрос в формате JSON
     QNetworkReply *reply = manager->post(request, jsonData);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
