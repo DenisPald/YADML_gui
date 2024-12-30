@@ -1,5 +1,3 @@
-// authwindow.h
-
 #ifndef AUTHWINDOW_H
 #define AUTHWINDOW_H
 
@@ -8,6 +6,14 @@
 #include <QNetworkReply>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QMessageBox>
+
+extern const QString ip_adress;
 
 class QLineEdit;
 class QPushButton;
@@ -19,23 +25,24 @@ public:
     explicit AuthWindow(QWidget *parent = nullptr);
     QString getAuthToken();
 
+
 private slots:
-    void handleLogin();                      // Слот для обработки нажатия кнопки "Войти"
-    void checkCredentials(const QString &username, const QString &password); // Метод для отправки запроса на сервер
+    void handleLogin();
+    void checkCredentials(const QString &username, const QString &password);
     void loginFailed(const QString &errorMessage);
     void loginSuccess();
 
 signals:
-    void onloginSuccess();                           // Сигнал при успешной аутентификации
-    void onloginFailed(const QString &errorMessage); // Сигнал при неудачной аутентификации
+    void onloginSuccess();
+    void onloginFailed(const QString &errorMessage);
 
 private:
-    QLineEdit *usernameInput;      // Поле ввода логина
-    QLineEdit *passwordInput;      // Поле ввода пароля
-    QPushButton *loginButton;      // Кнопка "Войти"
+    QLineEdit *usernameInput;
+    QLineEdit *passwordInput;
+    QPushButton *loginButton;
 
-    QNetworkAccessManager *manager; // Менеджер для сетевых запросов
-    QString authToken;             // Переменная для хранения токена
+    QNetworkAccessManager *manager;
+    QString authToken;
 };
 
 #endif // AUTHWINDOW_H

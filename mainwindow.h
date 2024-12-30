@@ -24,6 +24,11 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSqlError>
+#include <QEventLoop>
+#include <QUrlQuery>
+
+
+
 
 class MainWindow : public QWidget {
     Q_OBJECT
@@ -35,43 +40,43 @@ public:
     }
 
 private slots:
-    void loadMatrix();           // Загрузка матрицы из файла
-    void openWorkerSettings();   // Открытие настроек воркеров
-    void startTraining();        // Начало обучения
-    void getData();              // Получение данных (заглушка, должна быть определена в cpp)
-    void sendData();             // Отправка данных
-    void addWorker();            // Добавление воркера
-    void removeWorker();         // Удаление выбранных воркеров
+    void loadMatrix();
+    void openWorkerSettings();
+    void startTraining();
+    void getData();
+    void sendData();
+    void addWorker();
+    void removeWorker();
 
 private:
-    void setupDatabase();       // Настройка базы данных
-    void loadWorkers();         // Загрузка списка воркеров из базы данных
-    void deleteWorker(const QString &workerName); // Удаление воркера из базы данных
+    void setupDatabase();
+    void loadWorkers();
+    void deleteWorker(const QString &workerName);
 
     QNetworkAccessManager *manager = nullptr;
 
-    QButtonGroup *datasetGroup;           // Группа для выбора метода деления датасета
-    QButtonGroup *aggregationGroup;       // Группа для выбора метода объединения весов
+    QButtonGroup *datasetGroup;
+    QButtonGroup *aggregationGroup;
 
-    QLineEdit *filePathInput;      // Поле для отображения пути к файлу
-    QListWidget *machineSelector;   // Список выбора машин
-    QPushButton *startTrainingButton; // Кнопка для начала обучения
-    QString filePath;               // Путь к выбранному файлу
+    QLineEdit *filePathInput;
+    QListWidget *machineSelector;
+    QPushButton *startTrainingButton;
+    QString filePath;
 
-    QString authToken;              // Токен авторизации
+    QString authToken;
 
-    QLineEdit *globalEpochsInput;   // Поле ввода глобальных эпох
-    QLineEdit *localEpochsInput;    // Поле ввода локальных эпох
+    QLineEdit *globalEpochsInput;
+    QLineEdit *localEpochsInput;
 
-    QRadioButton *randomSplitButton;       // Радиокнопка для случайного деления
-    QRadioButton *stratifiedSplitButton;   // Радиокнопка для стратифицированного деления
-    QRadioButton *medianButton;            // Радиокнопка для median
-    QRadioButton *simple_averageButton;    // Радиокнопка для simple_average
-    QRadioButton *regularizedButton;       // Радиокнопка для regularized
+    QRadioButton *randomSplitButton;
+    QRadioButton *stratifiedSplitButton;
+    QRadioButton *medianButton;
+    QRadioButton *simple_averageButton;
+    QRadioButton *regularizedButton;
 
-    QSqlDatabase db;               // Объект базы данных
+    QSqlDatabase db;
 
-    QListWidget* createMachineSelector(); // Метод для создания виджета выбора машин
+    QListWidget* createMachineSelector();
 };
 
 #endif // MAINWINDOW_H
